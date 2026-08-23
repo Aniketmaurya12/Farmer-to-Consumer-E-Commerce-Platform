@@ -4,6 +4,7 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import os
+import uuid
 from datetime import datetime
 
 app = Flask(__name__, 
@@ -33,6 +34,32 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def save_upload(file):
+    """Save an uploaded image under a collision-free name.
+
+    secure_filename() alone is not unique: two sellers uploading 'tomato.jpg'
+    would silently overwrite each other's picture. Prefixing a random token
+    keeps every upload distinct.
+    """
+    filename = secure_filename(file.filename)
+    extension = filename.rsplit('.', 1)[1].lower()
+    unique_name = f"{uuid.uuid4().hex}.{extension}"
+    file.save(os.path.join(app.config['UPLOAD_FOLDER'], unique_name))
+    return 'uploads/' + unique_name
+
+
+def delete_image(image_url):
+    """Remove a stored product image from disk, ignoring failures."""
+    if not image_url:
+        return
+    image_path = os.path.join(app.root_path, 'static', image_url.lstrip('/'))
+    try:
+        if os.path.exists(image_path):
+            os.remove(image_path)
+    except OSError as e:
+        print(f"Error deleting image file: {e}")
 
 # Models
 class User(UserMixin, db.Model):
@@ -117,41 +144,41 @@ def home():
         'winter': {
             'months': [11, 12, 1, 2],
             'vegetables': [
-                {'name': 'Carrots', 'benefits': 'Rich in vitamin A, good for eye health', 'image': 'default/vegetables.jpg'},
-                {'name': 'Spinach', 'benefits': 'High in iron and vitamins', 'image': 'default/vegetables.jpg'},
-                {'name': 'Cauliflower', 'benefits': 'Low in calories, high in fiber', 'image': 'default/vegetables.jpg'},
-                {'name': 'Green Peas', 'benefits': 'Good source of protein and fiber', 'image': 'default/vegetables.jpg'}
+                {'name': 'Carrots', 'benefits': 'Rich in vitamin A, good for eye health', 'image': 'default/carrots.jpg'},
+                {'name': 'Spinach', 'benefits': 'High in iron and vitamins', 'image': 'default/spinach.jpg'},
+                {'name': 'Cauliflower', 'benefits': 'Low in calories, high in fiber', 'image': 'default/cauliflower.jpg'},
+                {'name': 'Green Peas', 'benefits': 'Good source of protein and fiber', 'image': 'default/green_peas.jpg'}
             ],
             'fruits': [
-                {'name': 'Oranges', 'benefits': 'High in vitamin C, boosts immunity', 'image': 'default/fruits.jpg'},
-                {'name': 'Apples', 'benefits': 'Rich in antioxidants', 'image': 'default/fruits.jpg'},
-                {'name': 'Guava', 'benefits': 'High in vitamin C and fiber', 'image': 'default/fruits.jpg'}
+                {'name': 'Oranges', 'benefits': 'High in vitamin C, boosts immunity', 'image': 'default/oranges.jpg'},
+                {'name': 'Apples', 'benefits': 'Rich in antioxidants', 'image': 'default/apples.jpg'},
+                {'name': 'Guava', 'benefits': 'High in vitamin C and fiber', 'image': 'default/guava.jpg'}
             ]
         },
         'summer': {
             'months': [3, 4, 5, 6],
             'vegetables': [
-                {'name': 'Cucumber', 'benefits': 'Hydrating and cooling', 'image': 'default/vegetables.jpg'},
-                {'name': 'Tomatoes', 'benefits': 'Rich in lycopene, good for heart', 'image': 'default/vegetables.jpg'},
-                {'name': 'Bottle Gourd', 'benefits': 'Cooling effect, good for digestion', 'image': 'default/vegetables.jpg'}
+                {'name': 'Cucumber', 'benefits': 'Hydrating and cooling', 'image': 'default/cucumber.jpg'},
+                {'name': 'Tomatoes', 'benefits': 'Rich in lycopene, good for heart', 'image': 'default/tomatoes.jpg'},
+                {'name': 'Bottle Gourd', 'benefits': 'Cooling effect, good for digestion', 'image': 'default/bottle_gourd.jpg'}
             ],
             'fruits': [
-                {'name': 'Mangoes', 'benefits': 'Rich in vitamins A and C', 'image': 'default/fruits.jpg'},
-                {'name': 'Watermelon', 'benefits': 'Hydrating, rich in antioxidants', 'image': 'default/fruits.jpg'},
-                {'name': 'Lychee', 'benefits': 'Good source of vitamin C', 'image': 'default/fruits.jpg'}
+                {'name': 'Mangoes', 'benefits': 'Rich in vitamins A and C', 'image': 'default/mangoes.jpg'},
+                {'name': 'Watermelon', 'benefits': 'Hydrating, rich in antioxidants', 'image': 'default/watermelon.jpg'},
+                {'name': 'Lychee', 'benefits': 'Good source of vitamin C', 'image': 'default/lychee.jpg'}
             ]
         },
         'monsoon': {
             'months': [7, 8, 9, 10],
             'vegetables': [
-                {'name': 'Bitter Gourd', 'benefits': 'Boosts immunity, good for diabetes', 'image': 'default/vegetables.jpg'},
-                {'name': 'Lady Finger', 'benefits': 'Rich in fiber and minerals', 'image': 'default/vegetables.jpg'},
-                {'name': 'Corn', 'benefits': 'Good source of energy', 'image': 'default/vegetables.jpg'}
+                {'name': 'Bitter Gourd', 'benefits': 'Boosts immunity, good for diabetes', 'image': 'default/bitter_gourd.jpg'},
+                {'name': 'Lady Finger', 'benefits': 'Rich in fiber and minerals', 'image': 'default/lady_finger.jpg'},
+                {'name': 'Corn', 'benefits': 'Good source of energy', 'image': 'default/corn.jpg'}
             ],
             'fruits': [
-                {'name': 'Pomegranate', 'benefits': 'Rich in antioxidants', 'image': 'default/fruits.jpg'},
-                {'name': 'Pear', 'benefits': 'Good for digestion', 'image': 'default/fruits.jpg'},
-                {'name': 'Jamun', 'benefits': 'Good for diabetics', 'image': 'default/fruits.jpg'}
+                {'name': 'Pomegranate', 'benefits': 'Rich in antioxidants', 'image': 'default/pomegranate.jpg'},
+                {'name': 'Pear', 'benefits': 'Good for digestion', 'image': 'default/pear.jpg'},
+                {'name': 'Jamun', 'benefits': 'Good for diabetics', 'image': 'default/jamun.jpg'}
             ]
         }
     }
@@ -265,11 +292,8 @@ def add_product():
             if 'image' in request.files:
                 file = request.files['image']
                 if file and file.filename and allowed_file(file.filename):
-                    filename = secure_filename(file.filename)
-                    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                    file.save(file_path)
                     # Store the URL path relative to static directory
-                    image_url = 'uploads/' + filename
+                    image_url = save_upload(file)
 
             product = Product(
                 name=request.form['name'],
@@ -352,28 +376,25 @@ def delete_product(product_id):
     
     try:
         product = Product.query.get_or_404(product_id)
-        
+
         if product.seller_id != current_user.id:
             flash('You can only delete your own products')
             return redirect(url_for('home'))
-        
+
+        # Read the image path BEFORE the row is deleted from the session.
+        image_url = product.image_url
+
         # First delete associated orders
         Order.query.filter_by(product_id=product.id).delete()
-        
+
         # Then delete the product
         db.session.delete(product)
-        
-        # Delete the product image if it exists
-        if product.image_url:
-            image_path = os.path.join(app.root_path, 'static', product.image_url.lstrip('/'))
-            try:
-                if os.path.exists(image_path):
-                    os.remove(image_path)
-            except Exception as e:
-                # Log error but continue with deletion
-                print(f"Error deleting image file: {e}")
-        
+
         db.session.commit()
+
+        # Only remove the file once the database change actually succeeded,
+        # so a rollback can never leave a product row pointing at a missing image.
+        delete_image(image_url)
         flash('Product deleted successfully')
         return redirect(url_for('home'))
     except Exception as e:
@@ -399,33 +420,17 @@ def edit_product(product_id):
         try:
             # Handle image upload or removal
             if 'remove_image' in request.form and product.image_url:
-                # Remove old image
-                old_image_path = os.path.join(app.root_path, 'static', product.image_url)
-                try:
-                    if os.path.exists(old_image_path):
-                        os.remove(old_image_path)
-                except Exception as e:
-                    print(f"Error removing old image: {e}")
+                delete_image(product.image_url)
                 product.image_url = ''
-            
+
             if 'image' in request.files:
                 file = request.files['image']
                 if file and file.filename and allowed_file(file.filename):
-                    # Remove old image if it exists
-                    if product.image_url:
-                        old_image_path = os.path.join(app.root_path, 'static', product.image_url)
-                        try:
-                            if os.path.exists(old_image_path):
-                                os.remove(old_image_path)
-                        except Exception as e:
-                            print(f"Error removing old image: {e}")
-                    
-                    # Save new image
-                    filename = secure_filename(file.filename)
-                    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                    file.save(file_path)
-                    product.image_url = 'uploads/' + filename
-            
+                    # Remove old image if it exists, then save the new one
+                    delete_image(product.image_url)
+                    product.image_url = save_upload(file)
+
+
             # Update other fields
             product.name = request.form['name']
             product.description = request.form['description']
@@ -464,22 +469,31 @@ def update_order_status(order_id, status):
     if status not in valid_statuses:
         flash('Invalid status')
         return redirect(url_for('my_orders'))
-    
+
+    # Capture the previous status BEFORE mutating the order, otherwise the
+    # stock adjustments below compare the new status against itself and
+    # never run.
+    previous_status = order.status
+
+    if previous_status == status:
+        flash(f'Order is already {status}')
+        return redirect(url_for('my_orders'))
+
     try:
-        # Update order status
-        order.status = status
-        
-        # If rejecting the order, update product quantity
-        if status == Order.STATUS_REJECTED and order.status != Order.STATUS_REJECTED:
+        # If rejecting a previously non-rejected order, return the reserved
+        # stock to the product.
+        if status == Order.STATUS_REJECTED and previous_status != Order.STATUS_REJECTED:
             product.quantity += order.quantity
-        
-        # If accepting a previously rejected order, decrease product quantity
-        if status == Order.STATUS_ACCEPTED and order.status == Order.STATUS_REJECTED:
+
+        # If accepting a previously rejected order, reserve the stock again.
+        if status == Order.STATUS_ACCEPTED and previous_status == Order.STATUS_REJECTED:
             if product.quantity < order.quantity:
                 flash('Not enough quantity available')
                 return redirect(url_for('my_orders'))
             product.quantity -= order.quantity
-        
+
+        order.status = status
+
         db.session.commit()
         flash(f'Order status updated to {status}')
     except Exception as e:
@@ -530,8 +544,15 @@ def my_orders():
 @app.route('/api/chat', methods=['POST'])
 @login_required
 def chat():
-    message = request.json.get('message', '').lower()
-    
+    # silent=True keeps a malformed or non-JSON body from raising a 400 that
+    # the chat widget cannot parse.
+    payload = request.get_json(silent=True) or {}
+    message = str(payload.get('message', '')).lower()
+
+    if not message.strip():
+        return jsonify({'response': 'Please type a message so I can help.'}), 400
+
+
     # Basic response logic based on user type and message content
     responses = {
         'farmer': {
@@ -593,9 +614,14 @@ def internal_error(error):
     db.session.rollback()
     return render_template('error.html', error_code=500, error_message="Something went wrong on our end"), 500
 
+# Create the schema at import time, not only under __main__.
+# Under gunicorn ("web: gunicorn app:app") the __main__ block never executes,
+# so without this every request failed with "no such table: product".
+with app.app_context():
+    db.create_all()
+
+
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
     debug_mode = os.environ.get('FLASK_DEBUG', '0') == '1'
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=debug_mode)

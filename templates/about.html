@@ -195,55 +195,43 @@
                 <div class="category-badge">
                     <span class="badge bg-success">Vegetables</span>
                 </div>
-                <img src="{{ url_for('static', filename='uploads/po.jpeg') }}" 
+                <img src="{{ url_for('static', filename='uploads/po.jpeg') }}"
                      class="card-img-top product-img" alt="Fresh Tomatoes">
                 <div class="card-body">
                     <h5 class="card-title text-capitalize">Fresh Tomatoes</h5>
                     <p class="card-text">Fresh, locally grown tomatoes from our trusted farmers. Rich in vitamins and antioxidants.</p>
                     <div class="product-details">
-                        <p class="text-success fw-bold price">₹30.00 per kg</p>
-                        <p class="stock-info"><i class="fas fa-box"></i> Available: 4 kg</p>
+                        <p class="text-success fw-bold price">From ₹30.00 per kg</p>
                         <p class="farmer-info"><i class="fas fa-user-circle"></i> Local Farmer</p>
                     </div>
                 </div>
-                <div class="card-footer bg-transparent border-0 d-flex justify-content-between align-items-center">
-                    <div class="quantity-selector">
-                        <button class="btn btn-sm btn-outline-secondary" onclick="decrementQuantity(1)">-</button>
-                        <input type="number" id="quantity-1" class="form-control form-control-sm quantity-input" value="1" min="1" max="4">
-                        <button class="btn btn-sm btn-outline-secondary" onclick="incrementQuantity(1)">+</button>
-                    </div>
-                    <button onclick="addToCart(1)" class="btn btn-success">
-                        <i class="fas fa-cart-plus"></i> Add to Cart
-                    </button>
+                <div class="card-footer bg-transparent border-0">
+                    <a href="{{ url_for('home') }}" class="btn btn-success w-100">
+                        <i class="fas fa-store me-2"></i>Browse Listings
+                    </a>
                 </div>
             </div>
         </div>
-        
+
         <div class="col-md-4 mb-4">
             <div class="card h-100 product-card">
                 <div class="category-badge">
                     <span class="badge bg-success">Vegetables</span>
                 </div>
-                <img src="{{ url_for('static', filename='uploads/poato.jpeg') }}" 
+                <img src="{{ url_for('static', filename='uploads/poato.jpeg') }}"
                      class="card-img-top product-img" alt="Fresh Potatoes">
                 <div class="card-body">
                     <h5 class="card-title text-capitalize">Fresh Potatoes</h5>
                     <p class="card-text">Premium quality potatoes sourced directly from local farmers. Perfect for various dishes.</p>
                     <div class="product-details">
-                        <p class="text-success fw-bold price">₹20.00 per kg</p>
-                        <p class="stock-info"><i class="fas fa-box"></i> Available: 9 kg</p>
+                        <p class="text-success fw-bold price">From ₹20.00 per kg</p>
                         <p class="farmer-info"><i class="fas fa-user-circle"></i> Local Farmer</p>
                     </div>
                 </div>
-                <div class="card-footer bg-transparent border-0 d-flex justify-content-between align-items-center">
-                    <div class="quantity-selector">
-                        <button class="btn btn-sm btn-outline-secondary" onclick="decrementQuantity(2)">-</button>
-                        <input type="number" id="quantity-2" class="form-control form-control-sm quantity-input" value="1" min="1" max="9">
-                        <button class="btn btn-sm btn-outline-secondary" onclick="incrementQuantity(2)">+</button>
-                    </div>
-                    <button onclick="addToCart(2)" class="btn btn-success">
-                        <i class="fas fa-cart-plus"></i> Add to Cart
-                    </button>
+                <div class="card-footer bg-transparent border-0">
+                    <a href="{{ url_for('home') }}" class="btn btn-success w-100">
+                        <i class="fas fa-store me-2"></i>Browse Listings
+                    </a>
                 </div>
             </div>
         </div>
@@ -266,73 +254,4 @@
     </div>
 </div>
 
-<script>
-function incrementQuantity(productId) {
-    const input = document.getElementById(`quantity-${productId}`);
-    const currentValue = parseInt(input.value);
-    const maxValue = parseInt(input.max);
-    if (currentValue < maxValue) {
-        input.value = currentValue + 1;
-    }
-}
-
-function decrementQuantity(productId) {
-    const input = document.getElementById(`quantity-${productId}`);
-    const currentValue = parseInt(input.value);
-    if (currentValue > 1) {
-        input.value = currentValue - 1;
-    }
-}
-
-function addToCart(productId) {
-    const quantityInput = document.getElementById(`quantity-${productId}`);
-    const quantity = parseInt(quantityInput.value);
-    
-    fetch('/add-to-cart', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            product_id: productId,
-            quantity: quantity
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showToast('Product added to cart successfully!', 'success');
-        } else {
-            showToast(data.message || 'Failed to add product to cart', 'error');
-        }
-    })
-    .catch(error => {
-        showToast('An error occurred while adding to cart', 'error');
-    });
-}
-
-function showToast(message, type) {
-    const toastContainer = document.getElementById('toast-container') || createToastContainer();
-    const toast = document.createElement('div');
-    toast.className = `toast ${type === 'success' ? 'bg-success' : 'bg-danger'} text-white`;
-    toast.innerHTML = message;
-    toastContainer.appendChild(toast);
-    
-    setTimeout(() => {
-        toast.classList.add('show');
-        setTimeout(() => {
-            toast.classList.remove('show');
-            setTimeout(() => toast.remove(), 300);
-        }, 3000);
-    }, 100);
-}
-
-function createToastContainer() {
-    const container = document.createElement('div');
-    container.id = 'toast-container';
-    container.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 1000;';
-    document.body.appendChild(container);
-    return container;
-}
-</script>
 {% endblock %}

@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.Python
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# Flask instance folder and local database
+instance/
+*.db
+*.sqlite
+*.sqlite3
+
+# User-uploaded content. The two .jpeg files referenced by the About page are
+# already tracked and stay tracked; new runtime uploads are ignored.
+static/uploads/*
+!static/uploads/.gitkeep
+!static/uploads/po.jpeg
+!static/uploads/poato.jpeg
+
+# NOTE: static/images/default/ is deliberately NOT ignored. Those placeholders
+# are produced by create_default_images.py and must be committed -- Vercel and
+# similar hosts serve from a read-only filesystem, so anything generated at
+# request time would not exist.
+
+# Environment / secrets
+.env
+.env.*
+
+# Editors and OS cruft
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -3,16 +3,48 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
+import logging
 import os
 import uuid
 from datetime import datetime
 
-app = Flask(__name__, 
+app = Flask(__name__,
     template_folder=os.path.abspath(os.path.join(os.path.dirname(__file__), 'templates')),
     static_folder=os.path.abspath(os.path.join(os.path.dirname(__file__), 'static')))
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-only-insecure-key-change-me')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///marketplace.db'
+
+
+def database_uri():
+    """Prefer a hosted database; fall back to local SQLite for development.
+
+    Serverless hosts (Vercel and similar) serve the deployment from a
+    read-only filesystem, so writing to a bundled SQLite file raises
+    "attempt to write a readonly database" on every INSERT -- registration,
+    listing a product and placing an order all fail. Set DATABASE_URL to a
+    hosted Postgres instance in that environment.
+    """
+    url = os.environ.get('DATABASE_URL', '').strip()
+    if not url:
+        return 'sqlite:///marketplace.db'
+    # Heroku/Neon/Supabase hand out the legacy postgres:// scheme, which
+    # SQLAlchemy 1.4+ no longer registers.
+    if url.startswith('postgres://'):
+        url = 'postgresql://' + url[len('postgres://'):]
+    return url
+
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_uri()
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+if not app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):
+    # Serverless instances are recycled freely, so connections go stale
+    # between invocations; check them out before use and recycle often.
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_pre_ping': True,
+        'pool_recycle': 280,
+    }
+
+logging.basicConfig(level=logging.INFO)
 
 # Ensure upload directory exists
 UPLOAD_FOLDER = os.path.join('static', 'uploads')
@@ -251,8 +283,9 @@ def register():
             db.session.commit()
             flash('Registration successful! Please login.')
             return redirect(url_for('login'))
-        except Exception as e:
+        except Exception:
             db.session.rollback()
+            app.logger.exception('Registration failed')
             flash('An error occurred during registration')
             return redirect(url_for('register'))
     return render_template('register.html')
@@ -267,7 +300,8 @@ def login():
                 flash('Logged in successfully!')
                 return redirect(url_for('home'))
             flash('Invalid username or password')
-        except Exception as e:
+        except Exception:
+            app.logger.exception('Login failed')
             flash('An error occurred during login')
     return render_template('login.html')
 
@@ -308,9 +342,9 @@ def add_product():
             db.session.commit()
             flash('Product added successfully!')
             return redirect(url_for('home'))
-        except Exception as e:
+        except Exception:
             db.session.rollback()
-            print(f"Error adding product: {e}")  # For debugging
+            app.logger.exception('Adding product failed')
             flash('An error occurred while adding the product')
             return redirect(url_for('add_product'))
     return render_template('add_product.html')
@@ -361,9 +395,9 @@ def buy_product(product_id):
         
         flash(f'Successfully ordered {quantity} {product.name}(s)')
         return redirect(url_for('my_orders'))
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        print(f"Error processing order: {e}")
+        app.logger.exception('Order processing failed')
         flash('An error occurred while processing your order')
         return redirect(url_for('home'))
 
@@ -397,9 +431,9 @@ def delete_product(product_id):
         delete_image(image_url)
         flash('Product deleted successfully')
         return redirect(url_for('home'))
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        print(f"Error deleting product: {e}")  # For debugging
+        app.logger.exception('Deleting product failed')
         flash('An error occurred while deleting the product')
         return redirect(url_for('home'))
 
@@ -441,9 +475,9 @@ def edit_product(product_id):
             db.session.commit()
             flash('Product updated successfully!')
             return redirect(url_for('home'))
-        except Exception as e:
+        except Exception:
             db.session.rollback()
-            print(f"Error updating product: {e}")
+            app.logger.exception('Updating product failed')
             flash('An error occurred while updating the product')
             return redirect(url_for('edit_product', product_id=product_id))
     
@@ -496,8 +530,9 @@ def update_order_status(order_id, status):
 
         db.session.commit()
         flash(f'Order status updated to {status}')
-    except Exception as e:
+    except Exception:
         db.session.rollback()
+        app.logger.exception('Order status update failed')
         flash('Error updating order status')
         
     return redirect(url_for('my_orders'))
@@ -519,9 +554,9 @@ def profile():
             
             db.session.commit()
             flash('Profile updated successfully!')
-        except Exception as e:
+        except Exception:
             db.session.rollback()
-            print(f"Error updating profile: {e}")
+            app.logger.exception('Updating profile failed')
             flash('An error occurred while updating your profile')
         return redirect(url_for('profile'))
     
@@ -617,8 +652,19 @@ def internal_error(error):
 # Create the schema at import time, not only under __main__.
 # Under gunicorn ("web: gunicorn app:app") the __main__ block never executes,
 # so without this every request failed with "no such table: product".
+#
+# A database that is unreachable at import time must not take the whole
+# process down: on a serverless host that would turn a transient blip during a
+# cold start into a hard 500 for every route, including the pages that do not
+# touch the database. Log it and let individual requests fail instead.
 with app.app_context():
-    db.create_all()
+    try:
+        db.create_all()
+    except Exception:
+        app.logger.exception(
+            'Could not create database schema at startup. '
+            'Check DATABASE_URL; the app will keep serving read-only pages.'
+        )
 
 
 if __name__ == '__main__':

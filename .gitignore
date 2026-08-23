@@ -15,13 +15,17 @@ instance/
 *.sqlite
 *.sqlite3
 
-# User-uploaded content
+# User-uploaded content. The two .jpeg files referenced by the About page are
+# already tracked and stay tracked; new runtime uploads are ignored.
 static/uploads/*
 !static/uploads/.gitkeep
+!static/uploads/po.jpeg
+!static/uploads/poato.jpeg
 
-# Generated placeholder images
-static/images/default/*
-!static/images/default/.gitkeep
+# NOTE: static/images/default/ is deliberately NOT ignored. Those placeholders
+# are produced by create_default_images.py and must be committed -- Vercel and
+# similar hosts serve from a read-only filesystem, so anything generated at
+# request time would not exist.
 
 # Environment / secrets
 .env

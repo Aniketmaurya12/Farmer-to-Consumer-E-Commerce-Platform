@@ -144,41 +144,41 @@ def home():
         'winter': {
             'months': [11, 12, 1, 2],
             'vegetables': [
-                {'name': 'Carrots', 'benefits': 'Rich in vitamin A, good for eye health', 'image': 'default/vegetables.jpg'},
-                {'name': 'Spinach', 'benefits': 'High in iron and vitamins', 'image': 'default/vegetables.jpg'},
-                {'name': 'Cauliflower', 'benefits': 'Low in calories, high in fiber', 'image': 'default/vegetables.jpg'},
-                {'name': 'Green Peas', 'benefits': 'Good source of protein and fiber', 'image': 'default/vegetables.jpg'}
+                {'name': 'Carrots', 'benefits': 'Rich in vitamin A, good for eye health', 'image': 'default/carrots.jpg'},
+                {'name': 'Spinach', 'benefits': 'High in iron and vitamins', 'image': 'default/spinach.jpg'},
+                {'name': 'Cauliflower', 'benefits': 'Low in calories, high in fiber', 'image': 'default/cauliflower.jpg'},
+                {'name': 'Green Peas', 'benefits': 'Good source of protein and fiber', 'image': 'default/green_peas.jpg'}
             ],
             'fruits': [
-                {'name': 'Oranges', 'benefits': 'High in vitamin C, boosts immunity', 'image': 'default/fruits.jpg'},
-                {'name': 'Apples', 'benefits': 'Rich in antioxidants', 'image': 'default/fruits.jpg'},
-                {'name': 'Guava', 'benefits': 'High in vitamin C and fiber', 'image': 'default/fruits.jpg'}
+                {'name': 'Oranges', 'benefits': 'High in vitamin C, boosts immunity', 'image': 'default/oranges.jpg'},
+                {'name': 'Apples', 'benefits': 'Rich in antioxidants', 'image': 'default/apples.jpg'},
+                {'name': 'Guava', 'benefits': 'High in vitamin C and fiber', 'image': 'default/guava.jpg'}
             ]
         },
         'summer': {
             'months': [3, 4, 5, 6],
             'vegetables': [
-                {'name': 'Cucumber', 'benefits': 'Hydrating and cooling', 'image': 'default/vegetables.jpg'},
-                {'name': 'Tomatoes', 'benefits': 'Rich in lycopene, good for heart', 'image': 'default/vegetables.jpg'},
-                {'name': 'Bottle Gourd', 'benefits': 'Cooling effect, good for digestion', 'image': 'default/vegetables.jpg'}
+                {'name': 'Cucumber', 'benefits': 'Hydrating and cooling', 'image': 'default/cucumber.jpg'},
+                {'name': 'Tomatoes', 'benefits': 'Rich in lycopene, good for heart', 'image': 'default/tomatoes.jpg'},
+                {'name': 'Bottle Gourd', 'benefits': 'Cooling effect, good for digestion', 'image': 'default/bottle_gourd.jpg'}
             ],
             'fruits': [
-                {'name': 'Mangoes', 'benefits': 'Rich in vitamins A and C', 'image': 'default/fruits.jpg'},
-                {'name': 'Watermelon', 'benefits': 'Hydrating, rich in antioxidants', 'image': 'default/fruits.jpg'},
-                {'name': 'Lychee', 'benefits': 'Good source of vitamin C', 'image': 'default/fruits.jpg'}
+                {'name': 'Mangoes', 'benefits': 'Rich in vitamins A and C', 'image': 'default/mangoes.jpg'},
+                {'name': 'Watermelon', 'benefits': 'Hydrating, rich in antioxidants', 'image': 'default/watermelon.jpg'},
+                {'name': 'Lychee', 'benefits': 'Good source of vitamin C', 'image': 'default/lychee.jpg'}
             ]
         },
         'monsoon': {
             'months': [7, 8, 9, 10],
             'vegetables': [
-                {'name': 'Bitter Gourd', 'benefits': 'Boosts immunity, good for diabetes', 'image': 'default/vegetables.jpg'},
-                {'name': 'Lady Finger', 'benefits': 'Rich in fiber and minerals', 'image': 'default/vegetables.jpg'},
-                {'name': 'Corn', 'benefits': 'Good source of energy', 'image': 'default/vegetables.jpg'}
+                {'name': 'Bitter Gourd', 'benefits': 'Boosts immunity, good for diabetes', 'image': 'default/bitter_gourd.jpg'},
+                {'name': 'Lady Finger', 'benefits': 'Rich in fiber and minerals', 'image': 'default/lady_finger.jpg'},
+                {'name': 'Corn', 'benefits': 'Good source of energy', 'image': 'default/corn.jpg'}
             ],
             'fruits': [
-                {'name': 'Pomegranate', 'benefits': 'Rich in antioxidants', 'image': 'default/fruits.jpg'},
-                {'name': 'Pear', 'benefits': 'Good for digestion', 'image': 'default/fruits.jpg'},
-                {'name': 'Jamun', 'benefits': 'Good for diabetics', 'image': 'default/fruits.jpg'}
+                {'name': 'Pomegranate', 'benefits': 'Rich in antioxidants', 'image': 'default/pomegranate.jpg'},
+                {'name': 'Pear', 'benefits': 'Good for digestion', 'image': 'default/pear.jpg'},
+                {'name': 'Jamun', 'benefits': 'Good for diabetics', 'image': 'default/jamun.jpg'}
             ]
         }
     }

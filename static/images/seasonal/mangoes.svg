@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" width="600" height="400">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fff8e1"/>
+      <stop offset="100%" stop-color="#ffe6ab"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="45%" r="55%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="600" height="400" fill="url(#bg)"/>
+  <circle cx="300" cy="200" r="170" fill="url(#glow)"/>
+  <ellipse cx="300" cy="348" rx="140" ry="20" fill="#000000" opacity="0.10"/>
+<g transform="translate(386,222) rotate(24)"><path d="M0,-84 C 62,-84 96,-26 84,32 C 74,80 26,96 -14,76 C -62,52 -76,-14 -50,-56 C -38,-76 -20,-84 0,-84 Z" fill="#e8951a"/><path d="M40,-62 C 74,-24 76,32 52,66 C 84,30 82,-28 40,-62 Z" fill="#d2521f" opacity="0.7"/></g><g transform="translate(258,240) rotate(-14)"><path d="M-8,-96 C 66,-96 106,-30 92,38 C 80,96 22,120 -26,96 C -84,66 -100,-16 -66,-64 C -50,-86 -30,-96 -8,-96 Z" fill="#f7b322"/><path d="M-8,-96 C -56,-84 -84,-24 -70,32 C -60,72 -34,96 -4,104 C -48,92 -74,50 -76,4 C -78,-46 -50,-86 -8,-96 Z" fill="#ffd35e" opacity="0.95"/><path d="M52,-62 C 92,-20 96,44 66,86 C 104,48 104,-20 52,-62 Z" fill="#e0521f" opacity="0.75"/><ellipse cx="-40" cy="-38" rx="30" ry="17" fill="#ffffff" opacity="0.45" transform="rotate(-38 -40 -38)"/></g><rect transform="translate(252,152) rotate(-10)" x="-5.0" y="-30" width="10" height="30" rx="5.0" fill="#6b4a1e"/><path transform="translate(260,132) rotate(-26) scale(0.55)" d="M0,0 C 30,-34 78,-38 96,-8 C 66,26 22,28 0,0 Z" fill="#3f8f34"/>
+</svg>

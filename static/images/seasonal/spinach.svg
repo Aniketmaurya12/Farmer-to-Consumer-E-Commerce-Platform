@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" width="600" height="400">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#eef7e8"/>
+      <stop offset="100%" stop-color="#d7ecd0"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="45%" r="55%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="600" height="400" fill="url(#bg)"/>
+  <circle cx="300" cy="200" r="170" fill="url(#glow)"/>
+  <ellipse cx="300" cy="348" rx="140" ry="20" fill="#000000" opacity="0.10"/>
+<path transform="translate(300,250) rotate(178)" d="M0,0 C 46,-96 148,-104 176,-30 C 128,44 40,44 0,0 Z" fill="#2f7a2b"/><path transform="translate(300,250) rotate(178)" d="M6,-4 C 60,-40 120,-46 160,-34" stroke="#2f6b28" stroke-width="5" fill="none" stroke-linecap="round"/><path transform="translate(300,250) rotate(215)" d="M0,0 C 46,-96 148,-104 176,-30 C 128,44 40,44 0,0 Z" fill="#3f9436"/><path transform="translate(300,250) rotate(215)" d="M6,-4 C 60,-40 120,-46 160,-34" stroke="#2f6b28" stroke-width="5" fill="none" stroke-linecap="round"/><path transform="translate(300,250) rotate(250)" d="M0,0 C 46,-96 148,-104 176,-30 C 128,44 40,44 0,0 Z" fill="#4faa41"/><path transform="translate(300,250) rotate(250)" d="M6,-4 C 60,-40 120,-46 160,-34" stroke="#2f6b28" stroke-width="5" fill="none" stroke-linecap="round"/><path transform="translate(300,250) rotate(285)" d="M0,0 C 46,-96 148,-104 176,-30 C 128,44 40,44 0,0 Z" fill="#3f9436"/><path transform="translate(300,250) rotate(285)" d="M6,-4 C 60,-40 120,-46 160,-34" stroke="#2f6b28" stroke-width="5" fill="none" stroke-linecap="round"/><path transform="translate(300,250) rotate(320)" d="M0,0 C 46,-96 148,-104 176,-30 C 128,44 40,44 0,0 Z" fill="#2f7a2b"/><path transform="translate(300,250) rotate(320)" d="M6,-4 C 60,-40 120,-46 160,-34" stroke="#2f6b28" stroke-width="5" fill="none" stroke-linecap="round"/><circle cx="300" cy="250" r="18" fill="#2b6624"/>
+</svg>

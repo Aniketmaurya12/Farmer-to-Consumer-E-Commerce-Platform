@@ -3,8 +3,10 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
+from sqlalchemy import text
 import logging
 import os
+import re
 import uuid
 from datetime import datetime
 
@@ -46,52 +48,135 @@ if not app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):
 
 logging.basicConfig(level=logging.INFO)
 
-# Ensure upload directory exists
+# Ensure upload directory exists. Serverless hosts mount the deployment
+# read-only, so this must never crash the app at import time.
 UPLOAD_FOLDER = os.path.join('static', 'uploads')
 UPLOAD_PATH = os.path.join(app.root_path, UPLOAD_FOLDER)
-os.makedirs(UPLOAD_PATH, exist_ok=True)
+try:
+    os.makedirs(UPLOAD_PATH, exist_ok=True)
+except OSError:
+    pass
 app.config['UPLOAD_FOLDER'] = UPLOAD_PATH
 
 # Ensure default images directory exists
 DEFAULT_IMAGES_PATH = os.path.join(app.root_path, 'static', 'images', 'default')
-os.makedirs(DEFAULT_IMAGES_PATH, exist_ok=True)
+try:
+    os.makedirs(DEFAULT_IMAGES_PATH, exist_ok=True)
+except OSError:
+    pass
 
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+# Pictures for the seasonal cards on the home page
+SEASONAL_IMAGES_PATH = os.path.join(app.root_path, 'static', 'images', 'seasonal')
+
+MAX_UPLOAD_MB = 16
+app.config['MAX_CONTENT_LENGTH'] = MAX_UPLOAD_MB * 1024 * 1024  # max file size
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
 # Allowed file extensions
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'}
+
+# The categories a farmer can pick from
+CATEGORIES = ['Vegetables', 'Fruits', 'Grains', 'Dairy', 'Other']
+
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def normalize_category(raw):
+    """Keep categories consistent so 'vegetables' and 'Vegetables' don't split apart."""
+    value = (raw or '').strip()
+    for known in CATEGORIES:
+        if value.lower() == known.lower():
+            return known
+    return value.title() if value else 'Other'
+
+
+def slugify(value):
+    """'Green Peas' -> 'green-peas' (used to find a seasonal item's picture)."""
+    return re.sub(r'[^a-z0-9]+', '-', (value or '').lower()).strip('-')
+
+
+class UploadError(Exception):
+    """Raised when a picture cannot be stored; the product itself still saves."""
+
+
+def seasonal_image(name):
+    """Picture for one seasonal item.
+
+    Order of preference:
+      1. a real photo dropped into static/images/seasonal/<slug>.jpg|jpeg|png|webp
+      2. the drawing from create_seasonal_images.py (<slug>.svg)
+      3. the generated placeholder in static/images/default/<slug_with_underscores>.jpg
+      4. None, so the caller falls back to the generic category image
+    """
+    slug = slugify(name)
+    for ext in ('jpg', 'jpeg', 'png', 'webp', 'svg'):
+        candidate = '{}.{}'.format(slug, ext)
+        if os.path.exists(os.path.join(SEASONAL_IMAGES_PATH, candidate)):
+            return 'images/seasonal/' + candidate
+    legacy = '{}.jpg'.format(slug.replace('-', '_'))
+    if os.path.exists(os.path.join(DEFAULT_IMAGES_PATH, legacy)):
+        return 'images/default/' + legacy
+    return None
 
 
 def save_upload(file):
     """Save an uploaded image under a collision-free name.
 
     secure_filename() alone is not unique: two sellers uploading 'tomato.jpg'
-    would silently overwrite each other's picture. Prefixing a random token
-    keeps every upload distinct.
+    would silently overwrite each other's picture, and a filename with no
+    ASCII characters reduces to an empty string, which used to blow up the
+    whole submit. A random token keeps every upload distinct and valid.
+
+    Returns '' when there is nothing to save. Raises UploadError when the
+    picture cannot be stored - the caller keeps the product and warns.
     """
-    filename = secure_filename(file.filename)
-    extension = filename.rsplit('.', 1)[1].lower()
+    if not file or not file.filename:
+        return ''
+    if not allowed_file(file.filename):
+        raise UploadError(
+            'Saved without a photo: that image type is not supported. Please '
+            'edit the product and upload a '
+            + ', '.join(sorted(ALLOWED_EXTENSIONS)) + ' file.')
+    extension = secure_filename(file.filename).rsplit('.', 1)[-1].lower() or 'jpg'
     unique_name = f"{uuid.uuid4().hex}.{extension}"
-    file.save(os.path.join(app.config['UPLOAD_FOLDER'], unique_name))
+    try:
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], unique_name))
+    except OSError as e:
+        # Serverless hosts serve from a read-only filesystem.
+        app.logger.warning('Could not store upload: %s', e)
+        raise UploadError(
+            'The product was saved, but its photo could not be stored on this '
+            'server (the file system is read-only). A default picture is shown '
+            'instead.')
     return 'uploads/' + unique_name
 
 
-def delete_image(image_url):
-    """Remove a stored product image from disk, ignoring failures."""
-    if not image_url:
+def delete_image(image_url, keep_product_id=None):
+    """Remove a stored product image from disk, ignoring failures.
+
+    Skips the delete when another product still points at the same file, so
+    removing one listing can never blank out somebody else's picture.
+    """
+    if not image_url or not image_url.startswith('uploads/'):
         return
+    try:
+        others = Product.query.filter(Product.image_url == image_url)
+        if keep_product_id is not None:
+            others = others.filter(Product.id != keep_product_id)
+        if others.count() > 0:
+            return
+    except Exception:
+        pass
     image_path = os.path.join(app.root_path, 'static', image_url.lstrip('/'))
     try:
         if os.path.exists(image_path):
             os.remove(image_path)
     except OSError as e:
-        print(f"Error deleting image file: {e}")
+        app.logger.warning('Error deleting image file: %s', e)
 
 # Models
 class User(UserMixin, db.Model):
@@ -224,6 +309,14 @@ def home():
         current_season = 'monsoon'
     
     season_data = seasonal_info[current_season]
+
+    # Attach a picture to every seasonal item (falls back to the category image)
+    for kind, fallback in (('vegetables', 'images/default/vegetables.jpg'),
+                           ('fruits', 'images/default/fruits.jpg')):
+        for item in season_data[kind]:
+            item['slug'] = slugify(item['name'])
+            item['image'] = seasonal_image(item['name']) or fallback
+            item['fallback'] = fallback
     
     # Get search parameters
     search_query = request.args.get('search', '').strip()
@@ -240,11 +333,12 @@ def home():
         products_query = products_query.filter(search_filter)
     
     if category_filter:
-        products_query = products_query.filter(Product.category == category_filter)
+        # match case-insensitively so older lowercase rows still show up
+        products_query = products_query.filter(Product.category.ilike(category_filter))
     
     # Get unique categories for the filter dropdown
     categories = db.session.query(Product.category).distinct().all()
-    categories = [cat[0] for cat in categories]
+    categories = sorted({normalize_category(c[0]) for c in categories if c[0]})
     
     products = products_query.all()
     
@@ -267,10 +361,10 @@ def register():
             
             # Check if username or email already exists
             if User.query.filter_by(username=username).first():
-                flash('Username already exists')
+                flash('Username already exists', 'danger')
                 return redirect(url_for('register'))
             if User.query.filter_by(email=email).first():
-                flash('Email already exists')
+                flash('Email already exists', 'danger')
                 return redirect(url_for('register'))
             
             user = User(
@@ -281,12 +375,12 @@ def register():
             )
             db.session.add(user)
             db.session.commit()
-            flash('Registration successful! Please login.')
+            flash('Registration successful! Please login.', 'success')
             return redirect(url_for('login'))
         except Exception:
             db.session.rollback()
             app.logger.exception('Registration failed')
-            flash('An error occurred during registration')
+            flash('An error occurred during registration', 'danger')
             return redirect(url_for('register'))
     return render_template('register.html')
 
@@ -297,67 +391,126 @@ def login():
             user = User.query.filter_by(username=request.form['username']).first()
             if user and check_password_hash(user.password_hash, request.form['password']):
                 login_user(user)
-                flash('Logged in successfully!')
+                flash('Logged in successfully!', 'success')
                 return redirect(url_for('home'))
-            flash('Invalid username or password')
+            flash('Invalid username or password', 'danger')
         except Exception:
             app.logger.exception('Login failed')
-            flash('An error occurred during login')
+            flash('An error occurred during login', 'danger')
     return render_template('login.html')
 
 @app.route('/logout')
 @login_required
 def logout():
     logout_user()
-    flash('Logged out successfully!')
+    flash('Logged out successfully!', 'success')
     return redirect(url_for('home'))
+
+@app.route('/my_products')
+@login_required
+def my_products():
+    """A farmer's own listings, with Edit and Delete on every card."""
+    if not current_user.is_farmer:
+        flash('Only farmers have a product list', 'danger')
+        return redirect(url_for('home'))
+
+    products = (Product.query
+                .filter_by(seller_id=current_user.id)
+                .order_by(Product.id.desc())
+                .all())
+    return render_template('my_products.html', products=products)
+
 
 @app.route('/add_product', methods=['GET', 'POST'])
 @login_required
 def add_product():
     if not current_user.is_farmer:
-        flash('Only farmers can add products')
+        flash('Only farmers can add products', 'danger')
         return redirect(url_for('home'))
-    
+
     if request.method == 'POST':
+        # Keep what was typed so a failed submit never wipes the form
+        form = {
+            'name': request.form.get('name', '').strip(),
+            'description': request.form.get('description', '').strip(),
+            'price': request.form.get('price', '').strip(),
+            'quantity': request.form.get('quantity', '').strip(),
+            'category': request.form.get('category', '').strip(),
+        }
         try:
-            # Handle file upload
+            if not form['name']:
+                raise ValueError('Please enter a product name.')
+            if not form['category']:
+                raise ValueError('Please choose a category.')
+            category = normalize_category(form['category'])
+            try:
+                price = float(form['price'])
+            except (TypeError, ValueError):
+                raise ValueError('Please enter a valid price.')
+            try:
+                quantity = int(form['quantity'])
+            except (TypeError, ValueError):
+                raise ValueError('Please enter a valid quantity.')
+            if price < 0 or quantity < 0:
+                raise ValueError('Price and quantity cannot be negative.')
+
+            # Listing several products in one category is fine. If it is
+            # literally the same item, say so instead of silently creating a
+            # duplicate the farmer has to clean up later.
+            existing = (Product.query
+                        .filter_by(seller_id=current_user.id)
+                        .filter(Product.name.ilike(form['name']))
+                        .filter(Product.category.ilike(category))
+                        .first())
+
             image_url = ''
-            if 'image' in request.files:
-                file = request.files['image']
-                if file and file.filename and allowed_file(file.filename):
-                    # Store the URL path relative to static directory
-                    image_url = save_upload(file)
+            upload_warning = None
+            try:
+                image_url = save_upload(request.files.get('image'))
+            except UploadError as e:
+                upload_warning = str(e)
 
             product = Product(
-                name=request.form['name'],
-                description=request.form['description'],
-                price=float(request.form['price']),
-                quantity=int(request.form['quantity']),
-                category=request.form['category'],
+                name=form['name'],
+                description=form['description'],
+                price=price,
+                quantity=quantity,
+                category=category,
                 image_url=image_url,
                 seller_id=current_user.id
             )
             db.session.add(product)
             db.session.commit()
-            flash('Product added successfully!')
-            return redirect(url_for('home'))
-        except Exception:
+
+            if upload_warning:
+                flash(upload_warning, 'warning')
+            if existing:
+                flash('Added. Heads up: you already had "{}" listed under {} - '
+                      'you can merge or remove the older one from My Products.'
+                      .format(existing.name, existing.category), 'warning')
+            flash('Product added successfully!', 'success')
+            return redirect(url_for('my_products'))
+        except ValueError as e:
+            db.session.rollback()
+            flash(str(e), 'danger')
+            return render_template('add_product.html', categories=CATEGORIES, form=form)
+        except Exception as e:
             db.session.rollback()
             app.logger.exception('Adding product failed')
-            flash('An error occurred while adding the product')
-            return redirect(url_for('add_product'))
-    return render_template('add_product.html')
+            flash('Could not add the product: {}'.format(e), 'danger')
+            return render_template('add_product.html', categories=CATEGORIES, form=form)
+
+    return render_template('add_product.html', categories=CATEGORIES, form={})
 
 @app.route('/buy_product/<int:product_id>', methods=['POST'])
 @login_required
 def buy_product(product_id):
     if current_user.is_farmer:
-        flash('Farmers cannot buy products')
+        flash('Farmers cannot buy products', 'danger')
         return redirect(url_for('home'))
     
     if not current_user.street_address or not current_user.phone:
-        flash('Please update your profile with delivery address before making a purchase')
+        flash('Please update your profile with delivery address before making a purchase', 'warning')
         return redirect(url_for('profile'))
     
     try:
@@ -365,11 +518,11 @@ def buy_product(product_id):
         quantity = int(request.form.get('quantity', 1))
         
         if quantity <= 0:
-            flash('Please enter a valid quantity')
+            flash('Please enter a valid quantity', 'danger')
             return redirect(url_for('home'))
         
         if quantity > product.quantity:
-            flash('Not enough stock available')
+            flash('Not enough stock available', 'danger')
             return redirect(url_for('home'))
         
         total_price = product.price * quantity
@@ -393,101 +546,138 @@ def buy_product(product_id):
         db.session.add(order)
         db.session.commit()
         
-        flash(f'Successfully ordered {quantity} {product.name}(s)')
+        flash(f'Successfully ordered {quantity} {product.name}(s)', 'success')
         return redirect(url_for('my_orders'))
     except Exception:
         db.session.rollback()
         app.logger.exception('Order processing failed')
-        flash('An error occurred while processing your order')
+        flash('An error occurred while processing your order', 'danger')
         return redirect(url_for('home'))
 
 @app.route('/delete_product/<int:product_id>', methods=['POST'])
 @login_required
 def delete_product(product_id):
     if not current_user.is_farmer:
-        flash('Only farmers can delete products')
+        flash('Only farmers can delete products', 'danger')
         return redirect(url_for('home'))
-    
+
+    product = Product.query.get_or_404(product_id)
+
+    if product.seller_id != current_user.id:
+        flash('You can only delete your own products', 'danger')
+        return redirect(url_for('my_products'))
+
+    # Read what we need BEFORE the row leaves the session
+    image_url = product.image_url
+    name = product.name
+
     try:
-        product = Product.query.get_or_404(product_id)
+        # Clear rows in other tables that point at this product, or the
+        # delete fails on a foreign key.
+        Order.query.filter_by(product_id=product.id).delete(synchronize_session=False)
+        try:
+            db.session.execute(
+                text('DELETE FROM cart_item WHERE product_id = :pid'), {'pid': product.id})
+        except Exception:
+            db.session.rollback()  # older databases may not have this table
 
-        if product.seller_id != current_user.id:
-            flash('You can only delete your own products')
-            return redirect(url_for('home'))
+        product = Product.query.get(product_id)  # re-fetch after the rollback above
+        if product is None:
+            flash('That product was already removed', 'warning')
+            return redirect(url_for('my_products'))
 
-        # Read the image path BEFORE the row is deleted from the session.
-        image_url = product.image_url
-
-        # First delete associated orders
-        Order.query.filter_by(product_id=product.id).delete()
-
-        # Then delete the product
         db.session.delete(product)
-
         db.session.commit()
-
-        # Only remove the file once the database change actually succeeded,
-        # so a rollback can never leave a product row pointing at a missing image.
-        delete_image(image_url)
-        flash('Product deleted successfully')
-        return redirect(url_for('home'))
-    except Exception:
+    except Exception as e:
         db.session.rollback()
         app.logger.exception('Deleting product failed')
-        flash('An error occurred while deleting the product')
-        return redirect(url_for('home'))
+        flash('Could not delete the product: {}'.format(e), 'danger')
+        return redirect(url_for('my_products'))
+
+    # Only now touch the file on disk, and only if nothing else uses it
+    delete_image(image_url)
+
+    flash('"{}" was deleted'.format(name), 'success')
+    return redirect(url_for('my_products'))
 
 @app.route('/edit_product/<int:product_id>', methods=['GET', 'POST'])
 @login_required
 def edit_product(product_id):
     if not current_user.is_farmer:
-        flash('Only farmers can edit products')
+        flash('Only farmers can edit products', 'danger')
         return redirect(url_for('home'))
-    
+
     product = Product.query.get_or_404(product_id)
-    
+
     if product.seller_id != current_user.id:
-        flash('You can only edit your own products')
-        return redirect(url_for('home'))
-    
+        flash('You can only edit your own products', 'danger')
+        return redirect(url_for('my_products'))
+
     if request.method == 'POST':
         try:
-            # Handle image upload or removal
-            if 'remove_image' in request.form and product.image_url:
-                delete_image(product.image_url)
+            name = request.form.get('name', '').strip()
+            description = request.form.get('description', '').strip()
+            category = normalize_category(request.form.get('category', ''))
+
+            if not name:
+                raise ValueError('Please enter a product name.')
+            try:
+                price = float(request.form.get('price', ''))
+            except (TypeError, ValueError):
+                raise ValueError('Please enter a valid price.')
+            try:
+                quantity = int(request.form.get('quantity', ''))
+            except (TypeError, ValueError):
+                raise ValueError('Please enter a valid quantity.')
+            if price < 0 or quantity < 0:
+                raise ValueError('Price and quantity cannot be negative.')
+
+            old_image = product.image_url
+            upload_warning = None
+            new_image = ''
+            try:
+                new_image = save_upload(request.files.get('image'))
+            except UploadError as e:
+                upload_warning = str(e)
+
+            if new_image:
+                product.image_url = new_image
+            elif 'remove_image' in request.form:
                 product.image_url = ''
 
-            if 'image' in request.files:
-                file = request.files['image']
-                if file and file.filename and allowed_file(file.filename):
-                    # Remove old image if it exists, then save the new one
-                    delete_image(product.image_url)
-                    product.image_url = save_upload(file)
+            product.name = name
+            product.description = description
+            product.price = price
+            product.quantity = quantity
+            product.category = category
 
-
-            # Update other fields
-            product.name = request.form['name']
-            product.description = request.form['description']
-            product.price = float(request.form['price'])
-            product.quantity = int(request.form['quantity'])
-            product.category = request.form['category']
-            
             db.session.commit()
-            flash('Product updated successfully!')
-            return redirect(url_for('home'))
-        except Exception:
+
+            # The old photo goes only once the new value is safely saved
+            if old_image and old_image != product.image_url:
+                delete_image(old_image, keep_product_id=product.id)
+
+            if upload_warning:
+                flash(upload_warning, 'warning')
+            flash('Product updated successfully!', 'success')
+            return redirect(url_for('my_products'))
+        except ValueError as e:
+            db.session.rollback()
+            flash(str(e), 'danger')
+            return render_template('edit_product.html', product=product, categories=CATEGORIES)
+        except Exception as e:
             db.session.rollback()
             app.logger.exception('Updating product failed')
-            flash('An error occurred while updating the product')
-            return redirect(url_for('edit_product', product_id=product_id))
-    
-    return render_template('edit_product.html', product=product)
+            flash('Could not update the product: {}'.format(e), 'danger')
+            return render_template('edit_product.html', product=product, categories=CATEGORIES)
+
+    return render_template('edit_product.html', product=product, categories=CATEGORIES)
 
 @app.route('/update_order_status/<int:order_id>/<string:status>', methods=['POST'])
 @login_required
 def update_order_status(order_id, status):
     if not current_user.is_farmer:
-        flash('Only farmers can update order status')
+        flash('Only farmers can update order status', 'danger')
         return redirect(url_for('my_orders'))
     
     order = Order.query.get_or_404(order_id)
@@ -495,13 +685,13 @@ def update_order_status(order_id, status):
     # Verify the order belongs to one of the farmer's products
     product = Product.query.get(order.product_id)
     if product.seller_id != current_user.id:
-        flash('You can only update status for your own products')
+        flash('You can only update status for your own products', 'danger')
         return redirect(url_for('my_orders'))
     
     # Validate status
     valid_statuses = [Order.STATUS_ACCEPTED, Order.STATUS_REJECTED, Order.STATUS_COMPLETED]
     if status not in valid_statuses:
-        flash('Invalid status')
+        flash('Invalid status', 'danger')
         return redirect(url_for('my_orders'))
 
     # Capture the previous status BEFORE mutating the order, otherwise the
@@ -522,18 +712,18 @@ def update_order_status(order_id, status):
         # If accepting a previously rejected order, reserve the stock again.
         if status == Order.STATUS_ACCEPTED and previous_status == Order.STATUS_REJECTED:
             if product.quantity < order.quantity:
-                flash('Not enough quantity available')
+                flash('Not enough quantity available', 'danger')
                 return redirect(url_for('my_orders'))
             product.quantity -= order.quantity
 
         order.status = status
 
         db.session.commit()
-        flash(f'Order status updated to {status}')
+        flash(f'Order status updated to {status}', 'success')
     except Exception:
         db.session.rollback()
         app.logger.exception('Order status update failed')
-        flash('Error updating order status')
+        flash('Error updating order status', 'danger')
         
     return redirect(url_for('my_orders'))
 
@@ -553,11 +743,11 @@ def profile():
             current_user.pincode = request.form['pincode']
             
             db.session.commit()
-            flash('Profile updated successfully!')
+            flash('Profile updated successfully!', 'success')
         except Exception:
             db.session.rollback()
             app.logger.exception('Updating profile failed')
-            flash('An error occurred while updating your profile')
+            flash('An error occurred while updating your profile', 'danger')
         return redirect(url_for('profile'))
     
     return render_template('profile.html')
@@ -639,6 +829,12 @@ def chat():
     db.session.commit()
     
     return jsonify({'response': response})
+
+@app.errorhandler(413)
+def file_too_large(error):
+    flash('That image is too large. Please upload a picture under {} MB.'.format(MAX_UPLOAD_MB),
+          'danger')
+    return redirect(request.referrer or url_for('add_product')), 302
 
 @app.errorhandler(404)
 def not_found_error(error):

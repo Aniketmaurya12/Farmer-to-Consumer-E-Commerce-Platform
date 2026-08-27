@@ -8,6 +8,9 @@ A Flask-based marketplace web app that connects farmers directly with buyers. Fa
 
 - User authentication (buyers and farmers) via Flask-Login
 - Farmer product listings with image uploads
+- **My Products** page where a farmer can edit or delete any of their own listings
+- Unlimited listings per category; uploads are stored under unique names so photos never overwrite each other
+- Seasonal vegetable and fruit cards, each with its own picture
 - SQLite database via SQLAlchemy
 - Auto-generated placeholder product images
 
@@ -48,14 +51,64 @@ A Flask-based marketplace web app that connects farmers directly with buyers. Fa
    python create_default_images.py
    ```
 
-6. Run the app:
+6. (Optional) Regenerate the seasonal home-page pictures:
+   ```bash
+   python create_seasonal_images.py
+   ```
+   They are already committed under `static/images/seasonal/`. To use a **real
+   photograph** instead of the drawing, drop a file named after the item into that
+   folder, e.g. `static/images/seasonal/tomatoes.jpg` or `mangoes.png` - the app
+   prefers a real photo over the drawing automatically, no code change needed.
+
+7. Run the app:
    ```bash
    python app.py
    ```
 
    The app will create `marketplace.db` automatically on first run.
 
-7. Visit `http://localhost:5000` in your browser.
+8. Visit `http://localhost:5000` in your browser.
+
+## Deploying to Vercel
+
+Vercel serves the deployment from a **read-only filesystem**. That has two
+consequences, and both bite the moment a farmer tries to add, edit or delete a
+product:
+
+1. **SQLite will not work there.** Writing to the bundled `marketplace.db`
+   fails with `attempt to write a readonly database`, so registration, listing
+   a product, editing it, deleting it and placing an order all fail. You must
+   point the app at a hosted Postgres database.
+2. **Uploaded photos cannot be stored.** The app now saves the product anyway
+   and shows a warning instead of failing the whole submit; the listing gets a
+   default picture. For real uploads on Vercel you need object storage
+   (Vercel Blob, Cloudinary, S3).
+
+### Steps
+
+1. `vercel.json` in this repo already tells Vercel how to build the Flask app,
+   so importing the GitHub repo at <https://vercel.com/new> is enough - pick
+   the repo and deploy. Every later `git push origin main` redeploys it.
+
+2. Create a free Postgres database (Neon, Supabase and Vercel Postgres all have
+   a free tier) and copy its connection string.
+
+3. In Vercel: **Project → Settings → Environment Variables**, add
+
+   | Name           | Value                                              |
+   | -------------- | -------------------------------------------------- |
+   | `DATABASE_URL` | the Postgres connection string from step 2         |
+   | `SECRET_KEY`   | any long random string                             |
+
+   `postgres://` connection strings are converted to `postgresql://`
+   automatically, so either form works.
+
+4. Redeploy (**Deployments → ⋯ → Redeploy**). Tables are created on the first
+   request, so the first page load may take a second longer than usual.
+
+Without step 3 the site still loads and browses, but every write fails - which
+is exactly what "I can't edit or delete my product" looks like from a farmer's
+side.
 
 ## Production Deployment
 
@@ -73,8 +126,10 @@ Make sure to set a strong `SECRET_KEY` environment variable in your hosting plat
 .
 ├── app.py                     # Main Flask application
 ├── create_default_images.py   # Generates placeholder product images
+├── create_seasonal_images.py  # Draws a picture for every seasonal item
 ├── requirements.txt           # Python dependencies
 ├── Procfile                   # Gunicorn start command for deployment
+├── vercel.json                # Vercel build + routing config
 ├── templates/                 # Jinja2 HTML templates
 └── static/                    # CSS, JS, uploaded & default images
 ```

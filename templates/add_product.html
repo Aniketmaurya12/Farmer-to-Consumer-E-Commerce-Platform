@@ -2,54 +2,58 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h2>Add New Product</h2>
-    {% with messages = get_flashed_messages() %}
-        {% if messages %}
-            {% for message in messages %}
-                <div class="alert alert-info">{{ message }}</div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
-    
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="mb-0">Add New Product</h2>
+        <a href="{{ url_for('my_products') }}" class="btn btn-outline-success">
+            <i class="fas fa-seedling me-2"></i>My Products
+        </a>
+    </div>
+    <p class="text-muted">You can list as many products as you like, including more than one in the same category.</p>
+
     <form method="POST" enctype="multipart/form-data">
         <div class="form-group mb-3">
             <label for="name">Product Name</label>
-            <input type="text" class="form-control" id="name" name="name" required>
+            <input type="text" class="form-control" id="name" name="name"
+                   value="{{ form.name or '' }}" required>
         </div>
-        
+
         <div class="form-group mb-3">
             <label for="description">Description</label>
-            <textarea class="form-control" id="description" name="description" rows="3" required></textarea>
+            <textarea class="form-control" id="description" name="description" rows="3" required>{{ form.description or '' }}</textarea>
         </div>
-        
+
         <div class="form-group mb-3">
-            <label for="price">Price (₹)</label>
-            <input type="number" class="form-control" id="price" name="price" step="0.01" min="0" required>
+            <label for="price">Price (&#8377;)</label>
+            <input type="number" class="form-control" id="price" name="price" step="0.01" min="0"
+                   value="{{ form.price or '' }}" required>
         </div>
-        
+
         <div class="form-group mb-3">
             <label for="quantity">Quantity Available</label>
-            <input type="number" class="form-control" id="quantity" name="quantity" min="1" required>
+            <input type="number" class="form-control" id="quantity" name="quantity" min="1"
+                   value="{{ form.quantity or '' }}" required>
         </div>
-        
+
         <div class="form-group mb-3">
             <label for="category">Category</label>
             <select class="form-control" id="category" name="category" required>
                 <option value="">Select a category</option>
-                <option value="Vegetables">Vegetables</option>
-                <option value="Fruits">Fruits</option>
-                <option value="Grains">Grains</option>
-                <option value="Dairy">Dairy</option>
-                <option value="Other">Other</option>
+                {% for category in categories %}
+                <option value="{{ category }}" {% if form.category and form.category|lower == category|lower %}selected{% endif %}>{{ category }}</option>
+                {% endfor %}
             </select>
         </div>
-        
+
         <div class="form-group mb-3">
-            <label for="image">Product Image</label>
+            <label for="image">Product Photo</label>
             <input type="file" class="form-control" id="image" name="image" accept="image/*">
+            <small class="text-muted">JPG, PNG, GIF or WEBP, up to 16 MB. Optional &mdash; a default picture is used if you skip it.</small>
         </div>
-        
-        <button type="submit" class="btn btn-primary">Add Product</button>
+
+        <button type="submit" class="btn btn-success">
+            <i class="fas fa-plus-circle me-2"></i>Add Product
+        </button>
+        <a href="{{ url_for('my_products') }}" class="btn btn-secondary">Cancel</a>
     </form>
 </div>
 {% endblock %}

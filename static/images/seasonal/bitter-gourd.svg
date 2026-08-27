@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" width="600" height="400">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#eff8e6"/>
+      <stop offset="100%" stop-color="#d4ecc2"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="45%" r="55%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="600" height="400" fill="url(#bg)"/>
+  <circle cx="300" cy="200" r="170" fill="url(#glow)"/>
+  <ellipse cx="300" cy="348" rx="140" ry="20" fill="#000000" opacity="0.10"/>
+<g transform="translate(300,236) rotate(-18)"><path d="M-170,0 C -150,-70 150,-80 172,-6 C 152,66 -148,64 -170,0 Z" fill="#4f9a2f"/><path d="M-170,0 C -150,-52 150,-60 172,-6 C 120,-30 -110,-28 -170,0 Z" fill="#6fbb45" opacity="0.85"/><path d="M-140,-42 C -128,-14 -128,14 -140,44" stroke="#2f6b1c" stroke-width="7" fill="none" stroke-linecap="round" opacity="0.75"/><path d="M-106,-42 C -94,-14 -94,14 -106,44" stroke="#2f6b1c" stroke-width="7" fill="none" stroke-linecap="round" opacity="0.75"/><path d="M-72,-42 C -60,-14 -60,14 -72,44" stroke="#2f6b1c" stroke-width="7" fill="none" stroke-linecap="round" opacity="0.75"/><path d="M-38,-42 C -26,-14 -26,14 -38,44" stroke="#2f6b1c" stroke-width="7" fill="none" stroke-linecap="round" opacity="0.75"/><path d="M-4,-42 C 8,-14 8,14 -4,44" stroke="#2f6b1c" stroke-width="7" fill="none" stroke-linecap="round" opacity="0.75"/><path d="M30,-42 C 42,-14 42,14 30,44" stroke="#2f6b1c" stroke-width="7" fill="none" stroke-linecap="round" opacity="0.75"/><path d="M64,-42 C 76,-14 76,14 64,44" stroke="#2f6b1c" stroke-width="7" fill="none" stroke-linecap="round" opacity="0.75"/><path d="M98,-42 C 110,-14 110,14 98,44" stroke="#2f6b1c" stroke-width="7" fill="none" stroke-linecap="round" opacity="0.75"/><path d="M132,-42 C 144,-14 144,14 132,44" stroke="#2f6b1c" stroke-width="7" fill="none" stroke-linecap="round" opacity="0.75"/></g><rect transform="translate(302,128) rotate(-18)" x="-6.0" y="-30" width="12" height="30" rx="6.0" fill="#4a7c2f"/><path transform="translate(316,114) rotate(-44) scale(0.5)" d="M0,0 C 30,-34 78,-38 96,-8 C 66,26 22,28 0,0 Z" fill="#3f8f34"/>
+</svg>

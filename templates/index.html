@@ -266,13 +266,9 @@
                 <div class="card h-100 food-card">
                     {% set placeholder = 'images/default/fruits.jpg' if product.category and product.category|lower == 'fruits' else 'images/default/vegetables.jpg' %}
                     <div class="food-card-img-wrapper">
-                        {% if product.image_url %}
-                        <img src="{{ url_for('static', filename=product.image_url) }}" class="card-img-top food-card-img" alt="{{ product.name }}"
+                        <img src="{{ url_for('product_image', product_id=product.id) }}" class="card-img-top food-card-img" alt="{{ product.name }}"
                              loading="lazy"
                              onerror="this.onerror=null; this.src='{{ url_for('static', filename=placeholder) }}'">
-                        {% else %}
-                        <img src="{{ url_for('static', filename=placeholder) }}" class="card-img-top food-card-img" alt="{{ product.name }}">
-                        {% endif %}
                         <span class="product-category">{{ product.category }}</span>
                     </div>
                     <div class="card-body">

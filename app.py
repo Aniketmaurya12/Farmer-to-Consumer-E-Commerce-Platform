@@ -1,9 +1,12 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, jsonify
+from flask import (Flask, render_template, request, redirect, url_for, flash,
+                   send_from_directory, jsonify, Response)
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from sqlalchemy import text
+import hashlib
+import io
 import logging
 import os
 import re
@@ -123,36 +126,66 @@ def seasonal_image(name):
     return None
 
 
-def save_upload(file):
-    """Save an uploaded image under a collision-free name.
+# Photos are re-encoded to this size before being stored, so a 12 MP phone
+# picture becomes a ~200 KB JPEG instead of filling up the database.
+IMAGE_MAX_EDGE = 1200
+IMAGE_QUALITY = 82
 
-    secure_filename() alone is not unique: two sellers uploading 'tomato.jpg'
-    would silently overwrite each other's picture, and a filename with no
-    ASCII characters reduces to an empty string, which used to blow up the
-    whole submit. A random token keeps every upload distinct and valid.
 
-    Returns '' when there is nothing to save. Raises UploadError when the
-    picture cannot be stored - the caller keeps the product and warns.
+def process_image(raw_bytes):
+    """Shrink and re-encode an uploaded photo. Returns (bytes, mimetype).
+
+    Falls back to the original bytes if Pillow is unavailable or cannot read
+    the file - a slightly large picture is better than no picture.
     """
-    if not file or not file.filename:
-        return ''
-    if not allowed_file(file.filename):
+    try:
+        from PIL import Image, ImageOps
+        img = Image.open(io.BytesIO(raw_bytes))
+        img = ImageOps.exif_transpose(img)          # honour phone rotation
+        if img.mode not in ('RGB', 'L'):
+            img = img.convert('RGB')
+        img.thumbnail((IMAGE_MAX_EDGE, IMAGE_MAX_EDGE), Image.LANCZOS)
+        out = io.BytesIO()
+        img.save(out, format='JPEG', quality=IMAGE_QUALITY, optimize=True)
+        return out.getvalue(), 'image/jpeg'
+    except Exception as e:
+        app.logger.warning('Could not re-encode upload, storing as-is: %s', e)
+        return raw_bytes, 'image/jpeg'
+
+
+def store_product_image(product_id, file_storage):
+    """Save an uploaded photo for a product. Returns True if one was stored.
+
+    Raises UploadError for a file type we cannot use. Nothing is written to
+    disk, so this works the same locally and on a read-only serverless host.
+    """
+    if not file_storage or not file_storage.filename:
+        return False
+    if not allowed_file(file_storage.filename):
         raise UploadError(
             'Saved without a photo: that image type is not supported. Please '
             'edit the product and upload a '
             + ', '.join(sorted(ALLOWED_EXTENSIONS)) + ' file.')
-    extension = secure_filename(file.filename).rsplit('.', 1)[-1].lower() or 'jpg'
-    unique_name = f"{uuid.uuid4().hex}.{extension}"
-    try:
-        file.save(os.path.join(app.config['UPLOAD_FOLDER'], unique_name))
-    except OSError as e:
-        # Serverless hosts serve from a read-only filesystem.
-        app.logger.warning('Could not store upload: %s', e)
-        raise UploadError(
-            'The product was saved, but its photo could not be stored on this '
-            'server (the file system is read-only). A default picture is shown '
-            'instead.')
-    return 'uploads/' + unique_name
+
+    raw = file_storage.read()
+    if not raw:
+        return False
+
+    data, mimetype = process_image(raw)
+    row = ProductImage.query.get(product_id)
+    if row is None:
+        row = ProductImage(product_id=product_id)
+        db.session.add(row)
+    row.data = data
+    row.mimetype = mimetype
+    row.etag = hashlib.md5(data).hexdigest()
+    row.updated_at = datetime.utcnow()
+    return True
+
+
+def drop_product_image(product_id):
+    """Remove a product's stored photo, if it has one."""
+    ProductImage.query.filter_by(product_id=product_id).delete(synchronize_session=False)
 
 
 def delete_image(image_url, keep_product_id=None):
@@ -238,6 +271,22 @@ class Order(db.Model):
     STATUS_ACCEPTED = 'accepted'
     STATUS_REJECTED = 'rejected'
     STATUS_COMPLETED = 'completed'
+
+class ProductImage(db.Model):
+    """A product photo, stored in the database rather than on disk.
+
+    Vercel (and every other serverless host) serves the app from a read-only
+    filesystem, so a photo written into static/uploads/ is lost the moment the
+    request ends - the picture simply never appeared on the site. Keeping the
+    bytes in the same database as everything else means an uploaded photo
+    survives, works across every instance, and needs no extra service.
+    """
+    product_id = db.Column(db.Integer, db.ForeignKey('product.id'), primary_key=True)
+    data = db.Column(db.LargeBinary, nullable=False)
+    mimetype = db.Column(db.String(60), nullable=False, default='image/jpeg')
+    etag = db.Column(db.String(32), nullable=False, default='')
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
 
 class ChatMessage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -406,6 +455,35 @@ def logout():
     flash('Logged out successfully!', 'success')
     return redirect(url_for('home'))
 
+@app.route('/product_image/<int:product_id>')
+def product_image(product_id):
+    """Serve a product photo.
+
+    One URL covers every case, so templates never have to guess:
+      1. the photo stored in the database (what new uploads use)
+      2. a legacy file still sitting in static/uploads/ from a local run
+      3. otherwise a redirect to the category placeholder
+    """
+    row = ProductImage.query.get(product_id)
+    if row is not None and row.data:
+        if request.headers.get('If-None-Match') == row.etag:
+            return Response(status=304)
+        response = Response(row.data, mimetype=row.mimetype)
+        response.headers['Cache-Control'] = 'public, max-age=300'
+        response.headers['ETag'] = row.etag
+        return response
+
+    product = Product.query.get(product_id)
+    if product is not None and product.image_url:
+        legacy = os.path.join(app.root_path, 'static', *product.image_url.split('/'))
+        if os.path.exists(legacy):
+            return redirect(url_for('static', filename=product.image_url))
+
+    category = (product.category or '').lower() if product else ''
+    placeholder = 'images/default/fruits.jpg' if category == 'fruits' else 'images/default/vegetables.jpg'
+    return redirect(url_for('static', filename=placeholder))
+
+
 @app.route('/my_products')
 @login_required
 def my_products():
@@ -463,23 +541,24 @@ def add_product():
                         .filter(Product.category.ilike(category))
                         .first())
 
-            image_url = ''
-            upload_warning = None
-            try:
-                image_url = save_upload(request.files.get('image'))
-            except UploadError as e:
-                upload_warning = str(e)
-
             product = Product(
                 name=form['name'],
                 description=form['description'],
                 price=price,
                 quantity=quantity,
                 category=category,
-                image_url=image_url,
+                image_url='',
                 seller_id=current_user.id
             )
             db.session.add(product)
+            db.session.flush()          # assigns product.id for the photo row
+
+            upload_warning = None
+            try:
+                store_product_image(product.id, request.files.get('image'))
+            except UploadError as e:
+                upload_warning = str(e)
+
             db.session.commit()
 
             if upload_warning:
@@ -587,6 +666,7 @@ def delete_product(product_id):
         except Exception:
             app.logger.info('No cart_item table to clean up; continuing')
 
+        drop_product_image(product.id)
         Order.query.filter_by(product_id=product.id).delete(synchronize_session=False)
         db.session.delete(product)
         db.session.commit()
@@ -636,15 +716,16 @@ def edit_product(product_id):
 
             old_image = product.image_url
             upload_warning = None
-            new_image = ''
+            replaced = False
             try:
-                new_image = save_upload(request.files.get('image'))
+                replaced = store_product_image(product.id, request.files.get('image'))
             except UploadError as e:
                 upload_warning = str(e)
 
-            if new_image:
-                product.image_url = new_image
+            if replaced:
+                product.image_url = ''      # the database copy is the photo now
             elif 'remove_image' in request.form:
+                drop_product_image(product.id)
                 product.image_url = ''
 
             product.name = name
@@ -655,7 +736,7 @@ def edit_product(product_id):
 
             db.session.commit()
 
-            # The old photo goes only once the new value is safely saved
+            # A legacy file on disk goes only once the new value is saved
             if old_image and old_image != product.image_url:
                 delete_image(old_image, keep_product_id=product.id)
 

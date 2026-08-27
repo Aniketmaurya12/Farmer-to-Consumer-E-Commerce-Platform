@@ -9,7 +9,8 @@ A Flask-based marketplace web app that connects farmers directly with buyers. Fa
 - User authentication (buyers and farmers) via Flask-Login
 - Farmer product listings with image uploads
 - **My Products** page where a farmer can edit or delete any of their own listings
-- Unlimited listings per category; uploads are stored under unique names so photos never overwrite each other
+- Unlimited listings per category
+- Product photos stored in the database, so they survive on read-only serverless hosts
 - Seasonal vegetable and fruit cards, each with its own picture
 - SQLite database via SQLAlchemy
 - Auto-generated placeholder product images
@@ -79,10 +80,12 @@ product:
    fails with `attempt to write a readonly database`, so registration, listing
    a product, editing it, deleting it and placing an order all fail. You must
    point the app at a hosted Postgres database.
-2. **Uploaded photos cannot be stored.** The app now saves the product anyway
-   and shows a warning instead of failing the whole submit; the listing gets a
-   default picture. For real uploads on Vercel you need object storage
-   (Vercel Blob, Cloudinary, S3).
+2. **Uploaded photos cannot be written to `static/uploads/`.** Product photos
+   are therefore stored **in the database** instead: `ProductImage` holds the
+   bytes and `/product_image/<id>` serves them. Uploads are re-encoded to a
+   max 1200 px JPEG first, so a phone photo lands at a couple of hundred KB
+   rather than several MB. No object storage or extra service is needed, and
+   it behaves identically on your own machine.
 
 ### Steps
 

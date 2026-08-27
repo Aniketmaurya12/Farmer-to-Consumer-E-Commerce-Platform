@@ -572,20 +572,22 @@ def delete_product(product_id):
     name = product.name
 
     try:
-        # Clear rows in other tables that point at this product, or the
-        # delete fails on a foreign key.
-        Order.query.filter_by(product_id=product.id).delete(synchronize_session=False)
+        # Clear rows in other tables that point at this product, or Postgres
+        # refuses the delete on a foreign key.
+        #
+        # cart_item only exists in older SQLite databases, so its absence must
+        # not abort the transaction. On Postgres any failed statement poisons
+        # the whole transaction, so this runs inside a SAVEPOINT: if the table
+        # is missing, only the savepoint rolls back and the deletes below still
+        # go through.
         try:
-            db.session.execute(
-                text('DELETE FROM cart_item WHERE product_id = :pid'), {'pid': product.id})
+            with db.session.begin_nested():
+                db.session.execute(
+                    text('DELETE FROM cart_item WHERE product_id = :pid'), {'pid': product.id})
         except Exception:
-            db.session.rollback()  # older databases may not have this table
+            app.logger.info('No cart_item table to clean up; continuing')
 
-        product = Product.query.get(product_id)  # re-fetch after the rollback above
-        if product is None:
-            flash('That product was already removed', 'warning')
-            return redirect(url_for('my_products'))
-
+        Order.query.filter_by(product_id=product.id).delete(synchronize_session=False)
         db.session.delete(product)
         db.session.commit()
     except Exception as e:
